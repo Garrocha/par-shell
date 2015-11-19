@@ -104,11 +104,7 @@ int main(int argc, char **argv){
     readVal = readLineArguments(input,MAXARG,buffer,BUFFER_SIZE);
     if (readVal < 0){
       fprintf(stderr, "Error on readLineArguments: %s\n",strerror(errno));
-      lst_destroy(plist);
-      destroyMutex(&mutex);
-      Cond_destroy(&CondMAX);
-      Cond_destroy(&CondChild);
-      Fclose(plist->fp);
+      cleanUp(plist, &mutex, &CondMAX, &CondChild);
       exit(EXIT_FAILURE);
     }
 
@@ -186,11 +182,8 @@ int main(int argc, char **argv){
     lst_print(plist);
   }else
     printf("Nothing to print\n");
-  lst_destroy(plist);
-  destroyMutex(&mutex);
-  Cond_destroy(&CondMAX);
-  Cond_destroy(&CondChild);
-  Fclose(plist->fp);
+
+  cleanUp(plist, &mutex, &CondMAX, &CondChild);
   printf("Exiting par-shell..\n");
   exit(EXIT_SUCCESS);
 }

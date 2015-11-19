@@ -165,7 +165,7 @@ void readFile(list_t *plist){
 }
 
 void fWritePid(list_t *plist, int pid, int exTime, char *endTime){
-  /* writes the first line of the new iteration. */
+  /* writes the 4 lines of a new iteration. */
   if (fprintf(plist->fp,
     "iteracao %d\npid: %d execution time: %d s\ntotal execution time: %d s\nEnd date: %s"
     , plist->iter, pid, exTime, plist->totalExTime, endTime) < 0) {
@@ -178,4 +178,12 @@ void fWritePid(list_t *plist, int pid, int exTime, char *endTime){
   if (fflush(plist->fp)) {
     fprintf(stderr,"Error on fflush: %s\n",strerror(errno));
   }
+}
+
+void cleanUp(list_t *plist, pthread_mutex_t *mutex, pthread_cond_t *CondMAX, pthread_cond_t *CondChild){
+  lst_destroy(plist);
+  destroyMutex(mutex);
+  Cond_destroy(CondMAX);
+  Cond_destroy(CondChild);
+  Fclose(plist->fp);
 }

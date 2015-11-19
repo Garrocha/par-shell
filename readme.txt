@@ -49,3 +49,8 @@ v 4.1
 ---- final version for submission 13.11.15 ----
 v 4.2 alinea extra
 - prints (and reads) a 4th line in an iteration with the end date of the process.
+====================
+v 5.0
+- added mutexLock and mutexUnlock
+- added cleanUp
+- added valMAXPAR (fixed "more" cmd)

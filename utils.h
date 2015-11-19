@@ -22,5 +22,6 @@ void readLine2(list_t *plist);
 int readLine3(list_t *plist);
 void readFile(list_t *plist);
 void fWritePid(list_t *plist, int pid, int exTime, char *endTime);
+void cleanUp(list_t *plist, pthread_mutex_t *mutex, pthread_cond_t *CondMAX, pthread_cond_t *CondChild);
 
 #endif
