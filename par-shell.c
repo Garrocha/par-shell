@@ -28,16 +28,17 @@ time_t setTime;
 pthread_mutex_t mutex;
 pthread_cond_t CondMAX; /* Condition variable for MAXPAR */
 pthread_cond_t CondChild; /* Condition variable for number of running child processes. */
+int valMAXPAR;            /* Stores the current MAXPAR value. */
 
 /* Monitor thread. */
 void *monitor(){
   int terminated_pid = 0, status = 0, loop = 1;
 
   while(loop){
-    pthread_mutex_lock(&mutex);
+    mutexLock(&mutex);
     /* wait condchild, remove espera ativa */
     while(plist->numChildren == 0 && plist->ISEXIT == 1){Cond_wait(&CondChild, &mutex);}
-    pthread_mutex_unlock(&mutex);
+    mutexUnlock(&mutex);
       if (!plist->ISEXIT && plist->numChildren == 0)
         loop = 0;
       else{
@@ -46,23 +47,23 @@ void *monitor(){
           terminated_pid = wait(&status);
           if (terminated_pid < 0){
             fprintf(stderr, "Error on wait: %s\n", strerror(errno));
-            pthread_mutex_lock(&mutex);              /* Closes mutex. */
+            mutexLock(&mutex);              /* Closes mutex. */
             plist->numChildren--;
-            pthread_mutex_unlock(&mutex);            /* Opens mutex. */
+            mutexUnlock(&mutex);            /* Opens mutex. */
           }
           else if (WIFEXITED(status)){
             /* the child terminated normally. */
-            pthread_mutex_lock(&mutex);              /* Closes mutex. */
+            mutexLock(&mutex);              /* Closes mutex. */
             time(&setTime);
             update_terminated_process(plist, terminated_pid, setTime, WEXITSTATUS(status));
             Cond_signal(&CondMAX);                    /* Post */
-            pthread_mutex_unlock(&mutex);            /* Opens mutex. */
+            mutexUnlock(&mutex);            /* Opens mutex. */
           }else{
             /* child didn't terminated normally. */
-            pthread_mutex_lock(&mutex);              /* Closes mutex. */
+            mutexLock(&mutex);              /* Closes mutex. */
             rm_process(plist,terminated_pid);
             Cond_signal(&CondMAX);                    /* Post */
-            pthread_mutex_unlock(&mutex);            /* Opens mutex. */
+            mutexUnlock(&mutex);            /* Opens mutex. */
           }
 
         }
@@ -75,7 +76,7 @@ int main(int argc, char **argv){
   char *input[MAXARG];
   char buffer[BUFFER_SIZE];
   int cmd = 0, readVal = 0, pid = 0;
-
+  valMAXPAR = MAXPAR;
   extern int errno;
   pthread_t tid[THREADS];
   plist = lst_new();
@@ -122,20 +123,22 @@ int main(int argc, char **argv){
       /* more cmd */
       if (strcmp(input[0],MORE_COMMAND) == 0) {
         cmd = 1;
-        pthread_mutex_lock(&mutex);
+        mutexLock(&mutex);
         Cond_signal(&CondMAX);                    /* Post */
-        pthread_mutex_unlock(&mutex);
+        valMAXPAR++;
+        mutexUnlock(&mutex);
+        printf("Incremented max parallel child processes.\n");
       }
 
       /* Exit cmd */
       if (strcmp(input[0],EXIT_COMMAND) == 0){
         cmd = 1;
 
-        pthread_mutex_lock(&mutex);              /* Closes mutex. */
+        mutexLock(&mutex);              /* Closes mutex. */
         plist->ISEXIT = 0;                        /* program will exit. */
         /* Unlocks monitor thread in order for it to leave. */
         Cond_signal(&CondChild);
-        pthread_mutex_unlock(&mutex);            /* Opens mutex. */
+        mutexUnlock(&mutex);            /* Opens mutex. */
 
         /* Waits for the monitor thread to exit. */
         if (pthread_join(tid[0],NULL) != 0) {
@@ -146,21 +149,21 @@ int main(int argc, char **argv){
       /* Launches child process if no cmd was invoked */
       if (!cmd){
         printf("Inicializing process on file %s\n", input[0]);
-        pthread_mutex_lock(&mutex);              /* Closes mutex. */
+        mutexLock(&mutex);              /* Closes mutex. */
         /* Wait MAXPAR - limits the number of max child processes. */
-        while(plist->numChildren == MAXPAR){Cond_wait(&CondMAX,&mutex);}
-        pthread_mutex_unlock(&mutex);            /* Opens mutex. */
+        while(plist->numChildren == valMAXPAR){Cond_wait(&CondMAX,&mutex);}
+        mutexUnlock(&mutex);            /* Opens mutex. */
         pid = fork();
         if (pid < 0){
           fprintf(stderr, "Error on fork: %s\n",strerror(errno));
         }
 
         if (pid > 0){     /* Parent process */
-          pthread_mutex_lock(&mutex);              /* Closes mutex. */
+          mutexLock(&mutex);              /* Closes mutex. */
           time(&setTime);
           insert_new_process(plist, pid, setTime);
           Cond_signal(&CondChild);
-          pthread_mutex_unlock(&mutex);            /* Opens mutex. */
+          mutexUnlock(&mutex);            /* Opens mutex. */
         }
 
         if (pid == 0){                              /* Child process */

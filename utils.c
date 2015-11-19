@@ -32,8 +32,8 @@ void mutexLock(pthread_mutex_t *mutex){
 }
 
 /* Unlocks mutex and tests if ocurred any errors. */
-void mutexUnlock(pthread_mutex_t mutex){
-  if (pthread_mutex_lock(&mutex) != 0) {
+void mutexUnlock(pthread_mutex_t *mutex){
+  if (pthread_mutex_unlock(mutex) != 0) {
     fprintf(stderr,"Error on pthread_mutex_unlock: %s\n",strerror(errno));
   }
 }
@@ -166,28 +166,16 @@ void readFile(list_t *plist){
 
 void fWritePid(list_t *plist, int pid, int exTime, char *endTime){
   /* writes the first line of the new iteration. */
-  if (fprintf(plist->fp, "iteracao %d\n", plist->iter) < 0) {
+  if (fprintf(plist->fp,
+    "iteracao %d\npid: %d execution time: %d s\ntotal execution time: %d s\nEnd date: %s"
+    , plist->iter, pid, exTime, plist->totalExTime, endTime) < 0) {
     fprintf(stderr,"Error on fprintf: %s\n",strerror(errno));
     exit(EXIT_FAILURE);
   }
   plist->iter++; /* increments the iteration value. */
-  /* writes the second line of the new iteration. */
-  if (fprintf(plist->fp, "pid: %d execution time: %d s\n", pid, exTime) < 0) {
-    fprintf(stderr,"Error on fprintf: %s\n",strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  /* writes the third line of the new iteration. */
-  if (fprintf(plist->fp, "total execution time: %d s\n", plist->totalExTime) < 0) {
-    fprintf(stderr,"Error on fprintf: %s\n",strerror(errno));
-    exit(EXIT_FAILURE);
-  }
-  /* writes the fourth line of the new iteration. */
-  if (fprintf(plist->fp, "End date: %s", endTime) < 0) {
-    fprintf(stderr,"Error on fprintf: %s\n",strerror(errno));
-    exit(EXIT_FAILURE);
-  }
+
   /* Flushes fp. Prints these lines to the log file. */
-  if (fflush(plist->fp) != 0) {
+  if (fflush(plist->fp)) {
     fprintf(stderr,"Error on fflush: %s\n",strerror(errno));
   }
 }

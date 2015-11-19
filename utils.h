@@ -6,7 +6,7 @@
 void mutexInit(pthread_mutex_t *mutex);
 void destroyMutex(pthread_mutex_t *mutex);
 void mutexLock(pthread_mutex_t *mutex);
-void mutexUnlock(pthread_mutex_t mutex); /* (*var) ou (var) / &var ou var */
+void mutexUnlock(pthread_mutex_t *mutex); /* (*var) ou (var) / &var ou var */
 
 /* Conditional variable functions. */
 void Cond_init(pthread_cond_t *cond, const pthread_condattr_t *restrict attr);
