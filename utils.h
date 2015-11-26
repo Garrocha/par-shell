@@ -22,6 +22,14 @@ void readLine2(list_t *plist);
 int readLine3(list_t *plist);
 void readFile(list_t *plist);
 void fWritePid(list_t *plist, int pid, int exTime, char *endTime);
+
+void Unlink(const char *path);
+void Mkfifo(const char *pathname, mode_t mode);
+int Open(const char *pathname, int flags, mode_t mode);
+void Close(int fd);
+int Dup(int oldfd);
+void Kill(pid_t pid, int sig);
+
 void cleanUp(list_t *plist, pthread_mutex_t *mutex, pthread_cond_t *CondMAX, pthread_cond_t *CondChild);
 
 #endif

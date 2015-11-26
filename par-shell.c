@@ -4,7 +4,9 @@
 #include <time.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/types.h>
+#include <sys/types.h> /* open */
+#include <sys/stat.h>  /* open */
+#include <fcntl.h>     /* open */
 #include <sys/wait.h>
 #include <signal.h>
 #include <pthread.h>
@@ -13,7 +15,7 @@
 #include "commandlinereader.h"
 #include "utils.h"
 
-#define MAXARG 7 /* CMD + 5 ARGS + NULL = 7 */
+#define MAXARG 7    /* CMD + 5 ARGS + NULL = 7 */
 #define BUFFER_SIZE 100
 #define MAXPAR 2    /* max number of child processes. */
 #define THREADS 1   /* size of thread vector. */
@@ -26,7 +28,7 @@
 list_t *plist;
 time_t setTime;
 pthread_mutex_t mutex;
-pthread_cond_t CondMAX; /* Condition variable for MAXPAR */
+pthread_cond_t CondMAX;   /* Condition variable for MAXPAR */
 pthread_cond_t CondChild; /* Condition variable for number of running child processes. */
 int valMAXPAR;            /* Stores the current MAXPAR value. */
 
@@ -56,7 +58,7 @@ void *monitor(){
             mutexLock(&mutex);              /* Closes mutex. */
             time(&setTime);
             update_terminated_process(plist, terminated_pid, setTime, WEXITSTATUS(status));
-            Cond_signal(&CondMAX);                    /* Post */
+            Cond_signal(&CondMAX);          /* Post */
             mutexUnlock(&mutex);            /* Opens mutex. */
           }else{
             /* child didn't terminated normally. */
@@ -75,10 +77,12 @@ void *monitor(){
 int main(int argc, char **argv){
   char *input[MAXARG];
   char buffer[BUFFER_SIZE];
-  int cmd = 0, readVal = 0, pid = 0;
-  valMAXPAR = MAXPAR;
   extern int errno;
   pthread_t tid[THREADS];
+  int cmd = 0, readVal = 0, pid = 0;
+  int newfd = 0; /* Stores the fd of the opened file by one child process. */
+  char pathname[BUFFER_SIZE]; /* Pathname of the file opened by a child process. */
+  valMAXPAR = MAXPAR;
   plist = lst_new();
   plist->fp = Fopen(FILE_NAME,MODE_APLUS);
 
@@ -123,7 +127,7 @@ int main(int argc, char **argv){
         Cond_signal(&CondMAX);                    /* Post */
         valMAXPAR++;
         mutexUnlock(&mutex);
-        printf("Incremented max parallel child processes.\n");
+        printf("Incremented max parallel child processes. New max: %d\n", valMAXPAR);
       }
 
       /* Exit cmd */
@@ -163,7 +167,16 @@ int main(int argc, char **argv){
         }
 
         if (pid == 0){                              /* Child process */
-        	execv(input[0], input);
+          memset(pathname, (int) '\0', BUFFER_SIZE);
+          if(sprintf(pathname, "par-shell-out-%d.txt", (int) getpid()) < 0){
+            fprintf(stderr,"Error on sprintf: %s\n",strerror(errno));
+          }
+          /* Opens/creates a file and makes that file the new output of the child */
+          newfd = Open(pathname, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR);
+          close(1);
+          dup(newfd);
+          close(newfd);
+          execv(input[0], input);
           /* New program in charge, the code below runs in case an error ocurred with execv.*/
           fprintf(stderr,"Error on execv: %s\n",strerror(errno));
           /*lst_destroy(plist);
