@@ -54,3 +54,6 @@ v 5.0
 - added mutexLock and mutexUnlock
 - added cleanUp
 - added valMAXPAR (fixed "more" cmd)
+v 5.1
+- added utils.c/.h and sync.c/.h
+- added par-shell-terminal

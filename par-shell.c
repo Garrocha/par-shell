@@ -13,10 +13,11 @@
 
 #include "list.h"
 #include "commandlinereader.h"
+#include "sync.h"
 #include "utils.h"
 
 #define MAXARG 7    /* CMD + 5 ARGS + NULL = 7 */
-#define BUFFER_SIZE 100
+#define BUFFER_SIZE 512
 #define MAXPAR 2    /* max number of child processes. */
 #define THREADS 1   /* size of thread vector. */
 #define EXIT_COMMAND "exit"
@@ -24,6 +25,8 @@
 #define MORE_COMMAND "more"
 #define FILE_NAME "log.txt" /* name of the file where data is stored. */
 #define MODE_APLUS "a+"     /* mode of opening a file that writes at the EOF.*/
+#define IN_PIPE "par-shell-in" /*name of the named pipe created by par-shell.*/
+#define PPERMS 07777    /* Permissions for mkfifo. */
 
 list_t *plist;
 time_t setTime;
@@ -64,7 +67,8 @@ void *monitor(){
             /* child didn't terminated normally. */
             mutexLock(&mutex);              /* Closes mutex. */
             rm_process(plist,terminated_pid);
-            Cond_signal(&CondMAX);                    /* Post */
+            printf("Process %d terminated\n", terminated_pid);
+            Cond_signal(&CondMAX);                  /* Post */
             mutexUnlock(&mutex);            /* Opens mutex. */
           }
 
@@ -80,11 +84,18 @@ int main(int argc, char **argv){
   extern int errno;
   pthread_t tid[THREADS];
   int cmd = 0, readVal = 0, pid = 0;
-  int newfd = 0; /* Stores the fd of the opened file by one child process. */
+  int newfd = -1; /* Stores the fd of the opened file by one child process. */
   char pathname[BUFFER_SIZE]; /* Pathname of the file opened by a child process. */
   valMAXPAR = MAXPAR;
+
   plist = lst_new();
   plist->fp = Fopen(FILE_NAME,MODE_APLUS);
+  mutexInit(&mutex);
+  if (pthread_create(&tid[0],0,monitor,NULL) != 0) {
+    fprintf(stderr,"Error on pthread_create: %s\n",strerror(errno));
+  }
+  Cond_init(&CondChild,NULL);
+  Cond_init(&CondMAX,NULL);
 
   readFile(plist);
   /* If the log file has previous entries, increments the last iter read
@@ -92,23 +103,26 @@ int main(int argc, char **argv){
   if (plist->iter != 0)
     plist->iter++;
 
-  mutexInit(&mutex);
-
-  if (pthread_create(&tid[0],0,monitor,NULL) != 0) {
-    fprintf(stderr,"Error on pthread_create: %s\n",strerror(errno));
-  }
-
-  Cond_init(&CondChild,NULL);
-  Cond_init(&CondMAX,NULL);
-
-  printcmds(0);
+  /* Makes sure that no previous pipe with the IN_PIPE is created, and creates
+     a new named pipe. */
+  unlink(IN_PIPE);
+  Mkfifo(IN_PIPE,PPERMS);
+  /* Holds until someone writes to this pipe. */
+  printf("vou abrir pipe\n");
+  newfd = Open(IN_PIPE, O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR);         /* ESTA CERTO??? */
+  printf("abri pipe\n");
+  Close(0);
+  Dup(newfd);
+  Close(newfd);
+  newfd = -1;   /* resets newfd to its default value */
   while (plist->ISEXIT){
     cmd = 0;
 
+    //Read(0);    /* Reads from the pipe. */
     readVal = readLineArguments(input,MAXARG,buffer,BUFFER_SIZE);
     if (readVal < 0){
       fprintf(stderr, "Error on readLineArguments: %s\n",strerror(errno));
-      cleanUp(plist, &mutex, &CondMAX, &CondChild);
+      //cleanUp(plist, &mutex, &CondMAX, &CondChild);        /*  PORQUE DA ERRO??? */
       exit(EXIT_FAILURE);
     }
 
@@ -158,7 +172,8 @@ int main(int argc, char **argv){
           fprintf(stderr, "Error on fork: %s\n",strerror(errno));
         }
 
-        if (pid > 0){     /* Parent process */
+        /* Parent process */
+        if (pid > 0){
           mutexLock(&mutex);              /* Closes mutex. */
           time(&setTime);
           insert_new_process(plist, pid, setTime);
@@ -173,9 +188,9 @@ int main(int argc, char **argv){
           }
           /* Opens/creates a file and makes that file the new output of the child */
           newfd = Open(pathname, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR);
-          close(1);
-          dup(newfd);
-          close(newfd);
+          Close(1);                                   /* Closes stdout. */
+          Dup(newfd);
+          Close(newfd);
           execv(input[0], input);
           /* New program in charge, the code below runs in case an error ocurred with execv.*/
           fprintf(stderr,"Error on execv: %s\n",strerror(errno));
@@ -197,6 +212,9 @@ int main(int argc, char **argv){
     printf("Nothing to print\n");
 
   cleanUp(plist, &mutex, &CondMAX, &CondChild);
+  /* Closes the named pipe and frees the memory occupied by it. */
+  Close(0);
+  Unlink(IN_PIPE);
   printf("Exiting par-shell..\n");
   exit(EXIT_SUCCESS);
 }

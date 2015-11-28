@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "list.h"
-#include "utils.h"
+#include "sync.h"
 
 /**********************************************************
  lst_new: allocates memory for a list_t list and initializes it.
@@ -103,6 +103,7 @@ void update_terminated_process(list_t *plist, int pid, time_t endtime, int retIn
       plist->numChildren--;
       plist->totalExTime += (int)(aux->endtime - aux->starttime);
       fWritePid(plist, aux->pid, (int)(aux->endtime - aux->starttime),ctime(&(aux->endtime)));
+      printf("Process %d terminated successfully\n", pid);
       return;
     }
     aux = aux->next;
